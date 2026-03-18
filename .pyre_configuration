@@ -1,0 +1,8 @@
+{
+  "source_directories": [
+    "fastapi-backend"
+  ],
+  "search_path": [
+    "fastapi-backend/venv/Lib/site-packages"
+  ]
+}

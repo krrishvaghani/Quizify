@@ -6,7 +6,8 @@ const Signup = () => {
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'user'
   });
   const [errors, setErrors] = useState({});
 
@@ -43,7 +44,8 @@ const Signup = () => {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
+          role: formData.role
         }),
       });
 
@@ -140,6 +142,22 @@ const Signup = () => {
               onChange={handleChange}
             />
             {errors.confirmPassword && <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="role">
+              Select Role
+            </label>
+            <select
+              id="role"
+              name="role"
+              className="appearance-none block w-full px-4 py-3 border border-gray-200 focus:ring-primary-500 rounded-xl shadow-sm placeholder-gray-400 text-gray-700 focus:outline-none focus:ring-2 sm:text-sm transition-colors"
+              value={formData.role}
+              onChange={handleChange}
+            >
+              <option value="user">User</option>
+              <option value="admin">Admin</option>
+            </select>
           </div>
 
           <button

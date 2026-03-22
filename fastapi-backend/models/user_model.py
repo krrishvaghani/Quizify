@@ -12,9 +12,10 @@ class UserModel:
         return pwd_context.verify(plain_password, hashed_password)
 
     @staticmethod
-    def create_user_dict(name: str, email: str, password: str) -> dict:
+    def create_user_dict(name: str, email: str, password: str, role: str = "user") -> dict:
         return {
             "name": name,
             "email": email,
-            "hashed_password": UserModel.get_password_hash(password)
+            "hashed_password": UserModel.get_password_hash(password),
+            "role": role
         }

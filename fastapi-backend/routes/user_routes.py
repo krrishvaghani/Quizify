@@ -1,0 +1,134 @@
+from fastapi import APIRouter, HTTPException, status, Depends
+from motor.motor_asyncio import AsyncIOMotorClient
+from schemas.attempt_schema import AttemptSubmit
+from config.db import get_database
+from bson import ObjectId
+from utils.auth import get_current_user
+import datetime
+
+router = APIRouter(tags=["User Quizzes and Attempts"])
+
+def get_db_client():
+    return get_database()
+
+@router.get("/api/quizzes/user")
+async def get_user_quizzes(db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    quizzes_collection = db["quizzify"]["quizzes"]
+    cursor = quizzes_collection.find({})
+    quizzes = await cursor.to_list(length=100)
+    
+    result = []
+    for q in quizzes:
+        q["quiz_id"] = str(q["_id"])
+        del q["_id"]
+        result.append(q)
+    return result
+
+@router.get("/api/quizzes/user/{quiz_id}")
+async def play_quiz(quiz_id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    quizzes_collection = db["quizzify"]["quizzes"]
+    questions_collection = db["quizzify"]["questions"]
+    
+    try:
+        quiz_obj_id = ObjectId(quiz_id)
+        quiz = await quizzes_collection.find_one({"_id": quiz_obj_id})
+        if not quiz:
+            raise HTTPException(status_code=404, detail="Quiz not found")
+            
+        cursor = questions_collection.find({"quiz_id": quiz_id})
+        questions = await cursor.to_list(length=100)
+        
+        # Remove correct_answer so user can't cheat
+        formatted_questions = []
+        for q in questions:
+            formatted_questions.append({
+                "question_id": str(q["_id"]),
+                "question": q["text"],
+                "options": q["options"]
+            })
+            
+        return {
+            "quiz_id": quiz_id,
+            "title": quiz.get("title", "Untitled Quiz"),
+            "category_id": quiz.get("category_id", ""),
+            "duration": quiz.get("duration", 5),
+            "questions": formatted_questions
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail="Invalid quiz_id format")
+
+@router.post("/api/attempts/submit", status_code=status.HTTP_201_CREATED)
+async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    questions_collection = db["quizzify"]["questions"]
+    attempts_collection = db["quizzify"]["attempts"]
+    quizzes_collection = db["quizzify"]["quizzes"]
+    
+    user_id = user.get("user_id")
+
+    try:
+        quiz_obj_id = ObjectId(submission.quiz_id)
+        quiz = await quizzes_collection.find_one({"_id": quiz_obj_id})
+        quiz_title = quiz.get("title", "Untitled Quiz") if quiz else "Unknown Quiz"
+    except Exception:
+        quiz_title = "Unknown Quiz"
+    
+    cursor = questions_collection.find({"quiz_id": submission.quiz_id})
+    questions = await cursor.to_list(length=100)
+    
+    if not questions:
+        raise HTTPException(status_code=404, detail="No questions found for this quiz")
+        
+    correct_answers = {str(q["_id"]): q["correct_answer"] for q in questions}
+    
+    score = 0
+    total_questions = len(questions)
+    
+    for ans in submission.answers:
+        q_id = ans.get("question_id")
+        selected = ans.get("selected_option")
+        if q_id in correct_answers and selected == correct_answers[q_id]:
+            score += 1
+            
+    percentage = (score / total_questions) * 100 if total_questions > 0 else 0
+    
+    attempt_doc = {
+        "user_id": user_id,
+        "quiz_id": submission.quiz_id,
+        "quiz_title": quiz_title,
+        "score": score,
+        "total_questions": total_questions,
+        "percentage": round(percentage, 2),
+        "timestamp": datetime.datetime.utcnow().isoformat()
+    }
+    
+    result = await attempts_collection.insert_one(attempt_doc)
+    
+    if result.inserted_id:
+        return {
+            "message": "Attempt saved successfully",
+            "attempt_id": str(result.inserted_id),
+            "score": score,
+            "total_questions": total_questions,
+            "percentage": round(percentage, 2)
+        }
+    
+    raise HTTPException(status_code=500, detail="Failed to save attempt")
+
+@router.get("/api/attempts/{user_id}")
+async def get_my_attempts(user_id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    if user_id != user.get("user_id"):
+        raise HTTPException(status_code=403, detail="You can only view your own attempts")
+
+    attempts_collection = db["quizzify"]["attempts"]
+    cursor = attempts_collection.find({"user_id": user_id}).sort("timestamp", -1)
+    attempts = await cursor.to_list(length=100)
+    
+    result = []
+    for a in attempts:
+        a["id"] = str(a["_id"])
+        del a["_id"]
+        result.append(a)
+        
+    return result

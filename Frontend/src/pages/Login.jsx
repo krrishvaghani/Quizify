@@ -41,8 +41,14 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("token", data.access_token);
         alert('Login successful! Welcome ' + (data.user?.name || ''));
-        navigate('/dashboard/create-quiz');
+        if (data.user?.role === 'admin') {
+          navigate('/admin');
+        } else {
+          navigate('/user');
+        }
       } else {
         alert('Login failed: ' + (data.detail || 'Invalid credentials'));
       }

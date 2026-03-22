@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import axios from 'axios';
 import QuestionForm from '../components/QuestionForm';
 
 const CreateQuiz = () => {
   const [title, setTitle] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [duration, setDuration] = useState(5);
   const [questions, setQuestions] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,41 +30,46 @@ const CreateQuiz = () => {
       alert('Please add at least one question');
       return;
     }
+    
+    // Validations
+    const invalidOptionCount = questions.some(q => !q.options || q.options.length !== 4);
+    if (invalidOptionCount) {
+      alert('Every question must have exactly 4 options.');
+      return;
+    }
+    
+    const missingCorrectAnswer = questions.some(q => !q.correct_answer);
+    if (missingCorrectAnswer) {
+      alert('Every question must have a correct answer selected.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      // 1. Create Quiz
-      const quizRes = await fetch('http://127.0.0.1:8000/api/quiz/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, category_id: categoryId }),
+      const payload = {
+        title,
+        category_id: categoryId,
+        duration: parseInt(duration),
+        questions
+      };
+
+      await axios.post('http://127.0.0.1:8000/api/quizzes/create', payload, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
-      const quizData = await quizRes.json();
-
-      if (!quizRes.ok) throw new Error(quizData.detail || 'Failed to create quiz');
-
-      const quizId = quizData.quiz_id;
-
-      // 2. Add Questions
-      const qsRes = await fetch(`http://127.0.0.1:8000/api/quiz/${quizId}/questions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questions }),
-      });
-      const qsData = await qsRes.json();
-
-      if (!qsRes.ok) throw new Error(qsData.detail || 'Failed to add questions');
 
       alert('Quiz successfully created with ' + questions.length + ' questions!');
       
       // Reset form
       setTitle('');
       setCategoryId('');
+      setDuration(5);
       setQuestions([]);
 
     } catch (error) {
       console.error(error);
-      alert('Error: ' + error.message);
+      alert('Error: ' + (error.response?.data?.detail || error.message));
     } finally {
       setIsSubmitting(false);
     }
@@ -77,7 +84,7 @@ const CreateQuiz = () => {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8 transition-all">
         <h2 className="text-xl font-bold text-gray-800 mb-6">Quiz Settings</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Quiz Title</label>
             <input
@@ -96,6 +103,17 @@ const CreateQuiz = () => {
               placeholder="e.g. react-advanced"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+            <input
+              type="number"
+              min="1"
+              max="180"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:outline-none transition-colors"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
             />
           </div>
         </div>

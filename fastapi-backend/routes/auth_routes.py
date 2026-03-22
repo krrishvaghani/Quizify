@@ -3,6 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from schemas.user_schema import UserSignup, UserLogin
 from models.user_model import UserModel
 from config.db import get_database
+from utils.auth import sign_jwt
 
 router = APIRouter()
 
@@ -22,7 +23,7 @@ async def signup(user: UserSignup, db: AsyncIOMotorClient = Depends(get_db_clien
         )
     
     # Create user dictionary ready for DB
-    user_dict = UserModel.create_user_dict(user.name, user.email, user.password)
+    user_dict = UserModel.create_user_dict(name=user.name, email=user.email, password=user.password, role=user.role)
     
     # Store user in MongoDB
     result = await users_collection.insert_one(user_dict)
@@ -55,11 +56,17 @@ async def login(user: UserLogin, db: AsyncIOMotorClient = Depends(get_db_client)
             detail="Invalid email or password"
         )
         
+    user_id_str = str(db_user["_id"])
+    role = db_user.get("role", "user")
+    access_token = sign_jwt(user_id_str, role)
+    
     return {
         "message": "Login successful",
+        "access_token": access_token,
         "user": {
-            "id": str(db_user["_id"]),
+            "id": user_id_str,
             "name": db_user["name"],
-            "email": db_user["email"]
+            "email": db_user["email"],
+            "role": role
         }
     }

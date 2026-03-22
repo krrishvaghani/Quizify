@@ -3,7 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from config.db import connect_to_mongo, close_mongo_connection
 from routes.auth_routes import router as auth_router
-from routes.quiz_routes import router as quiz_router
+from routes.admin_routes import router as admin_router
+from routes.user_routes import router as user_router
+from routes.category_routes import router as category_router
 
 app = FastAPI(title="Quizzify API", description="Quiz Management System API")
 
@@ -34,7 +36,9 @@ async def shutdown_db_client():
 
 # Include Routers
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(quiz_router, prefix="/api/quiz", tags=["Quiz"])
+app.include_router(admin_router)
+app.include_router(user_router)
+app.include_router(category_router, prefix="/api/categories", tags=["Categories"])
 
 @app.get("/")
 def read_root():

@@ -84,11 +84,24 @@ async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Dep
     
     score = 0
     total_questions = len(questions)
+    detailed_questions = []
     
-    for ans in submission.answers:
-        q_id = ans.get("question_id")
-        selected = ans.get("selected_option")
-        if q_id in correct_answers and selected == correct_answers[q_id]:
+    for q in questions:
+        q_id_str = str(q["_id"])
+        correct_opt = q["correct_answer"]
+        # Find user's selected option if it exists
+        user_opt = next((ans.get("selected_option") for ans in submission.answers if ans.get("question_id") == q_id_str), None)
+        is_val = (user_opt == correct_opt)
+        
+        detailed_questions.append({
+            "question": q["text"],
+            "options": q["options"],
+            "correct_answer": correct_opt,
+            "user_answer": user_opt,
+            "is_correct": is_val
+        })
+        
+        if is_val:
             score += 1
             
     percentage = (score / total_questions) * 100 if total_questions > 0 else 0
@@ -100,7 +113,8 @@ async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Dep
         "score": score,
         "total_questions": total_questions,
         "percentage": round(percentage, 2),
-        "timestamp": datetime.datetime.utcnow().isoformat()
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "questions": detailed_questions 
     }
     
     result = await attempts_collection.insert_one(attempt_doc)
@@ -132,3 +146,23 @@ async def get_my_attempts(user_id: str, db: AsyncIOMotorClient = Depends(get_db_
         result.append(a)
         
     return result
+
+@router.get("/api/attempt/{attempt_id}")
+async def get_attempt_details(attempt_id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    attempts_collection = db["quizzify"]["attempts"]
+    try:
+        obj_id = ObjectId(attempt_id)
+        attempt = await attempts_collection.find_one({"_id": obj_id})
+        if not attempt:
+            raise HTTPException(status_code=404, detail="Attempt not found")
+            
+        if attempt.get("user_id") != user.get("user_id") and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="You can only view your own attempts")
+            
+        attempt["id"] = str(attempt["_id"])
+        del attempt["_id"]
+        return attempt
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=400, detail="Invalid attempt ID format")

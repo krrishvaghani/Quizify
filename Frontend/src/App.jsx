@@ -12,6 +12,10 @@ import PlayQuiz from './pages/PlayQuiz';
 import Result from './pages/Result';
 import MyQuizzes from './pages/MyQuizzes';
 import AdminCategories from './pages/AdminCategories';
+import AdminLeaderboard from './pages/AdminLeaderboard';
+import AdminDashboard from './pages/AdminDashboard';
+import UserDashboard from './pages/UserDashboard';
+import MyAttempts from './pages/MyAttempts';
 
 function App() {
   return (
@@ -25,22 +29,23 @@ function App() {
         {/* Protected Admin Routes */}
         <Route element={<ProtectedRoute allowedRole="admin" />}>
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<div className="p-8"><h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1><p className="mt-2 text-gray-600">Select an option from the sidebar to continue.</p></div>} />
+            <Route index element={<AdminDashboard />} />
             <Route path="create-quiz" element={<CreateQuiz />} />
             <Route path="my-quizzes" element={<MyQuizzes />} />
             <Route path="categories" element={<AdminCategories />} />
+            <Route path="leaderboard" element={<AdminLeaderboard />} />
           </Route>
         </Route>
 
         {/* Protected User Routes */}
         <Route element={<ProtectedRoute allowedRole="user" />}>
           <Route path="/user" element={<UserLayout />}>
-            <Route index element={<div className="p-8"><h1 className="text-3xl font-bold text-gray-900">User Dashboard</h1><p className="mt-2 text-gray-600">Select an option from the sidebar to continue.</p></div>} />
+            <Route index element={<UserDashboard />} />
             <Route path="quizzes" element={<QuizList />} />
             <Route path="play-quiz/:quizId" element={<PlayQuiz />} />
-            <Route path="result/:quizId" element={<Result />} />
-            <Route path="my-attempts" element={<div className="p-8"><h1 className="text-3xl font-bold">My Attempts</h1></div>} />
-            <Route path="results" element={<div className="p-8"><h1 className="text-3xl font-bold">Past Results</h1></div>} />
+            <Route path="results/:attemptId" element={<Result />} />
+            <Route path="my-attempts" element={<MyAttempts />} />
+            <Route path="results" element={<MyAttempts />} />
           </Route>
         </Route>
       </Routes>

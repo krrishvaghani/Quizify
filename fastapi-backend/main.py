@@ -6,6 +6,9 @@ from routes.auth_routes import router as auth_router
 from routes.admin_routes import router as admin_router
 from routes.user_routes import router as user_router
 from routes.category_routes import router as category_router
+from routes.leaderboard_routes import router as leaderboard_router
+from routes.admin_dashboard_routes import router as admin_dashboard_router
+from routes.user_dashboard_routes import router as user_dashboard_router
 
 app = FastAPI(title="Quizzify API", description="Quiz Management System API")
 
@@ -39,6 +42,9 @@ app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(admin_router)
 app.include_router(user_router)
 app.include_router(category_router, prefix="/api/categories", tags=["Categories"])
+app.include_router(leaderboard_router)
+app.include_router(admin_dashboard_router)
+app.include_router(user_dashboard_router)
 
 @app.get("/")
 def read_root():

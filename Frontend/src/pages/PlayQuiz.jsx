@@ -50,8 +50,8 @@ const PlayQuiz = () => {
       });
       if (!res.ok) throw new Error("Failed to submit");
       const result = await res.json();
-      // Redirect to Result page with state
-      navigate(`/dashboard/result/${quizId}`, { state: { result, quizTitle: quiz?.title } });
+      // Redirect directly to the detailed attempt page
+      navigate(`/user/results/${result.attempt_id}`);
     } catch (err) {
       console.error(err);
       alert('Failed to submit quiz');

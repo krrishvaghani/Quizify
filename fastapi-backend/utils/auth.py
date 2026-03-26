@@ -28,20 +28,20 @@ def decode_jwt(token: str) -> dict:
 
 class JWTAuth(HTTPBearer):
     def __init__(self, auto_error: bool = True):
-        super().__init__(auto_error=auto_error)
+        super().__init__(auto_error=False)
 
-    async def __call__(self, request: Request) -> HTTPAuthorizationCredentials:
+    async def __call__(self, request: Request) -> dict:
         credentials = await super().__call__(request)
-        if credentials:
-            if not credentials.scheme == "Bearer":
-                raise HTTPException(status_code=403, detail="Invalid authentication scheme.")
-            
-            payload = decode_jwt(credentials.credentials)
-            if not payload:
-                raise HTTPException(status_code=401, detail="Invalid or expired token")
-            return payload
-        else:
-            raise HTTPException(status_code=403, detail="Invalid authorization code.")
+        if not credentials:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        if not credentials.scheme == "Bearer":
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme. Bearer scheme required.")
+        
+        payload = decode_jwt(credentials.credentials)
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        return payload
 
 def get_current_user(payload: dict = Depends(JWTAuth())) -> dict:
     """Dependency that extracts the validated token payload."""

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, PlusSquare, List, Grid, LogOut } from 'lucide-react';
+import { Home, PlusSquare, List, Grid, LogOut, Trophy } from 'lucide-react';
 
 const AdminSidebar = () => {
   const location = useLocation();
@@ -10,6 +10,7 @@ const AdminSidebar = () => {
     { name: 'Create Quiz', path: '/admin/create-quiz', icon: <PlusSquare size={20} /> },
     { name: 'My Quizzes', path: '/admin/my-quizzes', icon: <List size={20} /> },
     { name: 'Categories', path: '/admin/categories', icon: <Grid size={20} /> },
+    { name: 'Top Performers', path: '/admin/leaderboard', icon: <Trophy size={20} /> },
   ];
 
   const handleLogout = () => {

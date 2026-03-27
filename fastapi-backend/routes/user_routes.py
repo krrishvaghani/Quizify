@@ -50,8 +50,9 @@ async def play_quiz(quiz_id: str, db: AsyncIOMotorClient = Depends(get_db_client
         return {
             "quiz_id": quiz_id,
             "title": quiz.get("title", "Untitled Quiz"),
-            "category_id": quiz.get("category_id", ""),
             "duration": quiz.get("duration", 5),
+            "question_timer": quiz.get("question_timer", False),
+            "time_per_question": quiz.get("time_per_question"),
             "questions": formatted_questions
         }
     except Exception as e:
@@ -111,9 +112,9 @@ async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Dep
         "quiz_id": submission.quiz_id,
         "quiz_title": quiz_title,
         "score": score,
-        "total_questions": total_questions,
+        "total": total_questions,
         "percentage": round(percentage, 2),
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "date": datetime.datetime.utcnow().isoformat(),
         "questions": detailed_questions 
     }
     
@@ -124,45 +125,57 @@ async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Dep
             "message": "Attempt saved successfully",
             "attempt_id": str(result.inserted_id),
             "score": score,
-            "total_questions": total_questions,
+            "total": total_questions,
             "percentage": round(percentage, 2)
         }
     
     raise HTTPException(status_code=500, detail="Failed to save attempt")
 
-@router.get("/api/attempts/{user_id}")
-async def get_my_attempts(user_id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
-    if user_id != user.get("user_id"):
+@router.get("/api/attempts/{id}")
+async def get_attempts_or_detail(id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    attempts_collection = db["quizzify"]["attempts"]
+    
+    # First try resolving id as an attempt_id
+    try:
+        obj_id = ObjectId(id)
+        attempt = await attempts_collection.find_one({"_id": obj_id})
+        if attempt:
+            if attempt.get("user_id") != user.get("user_id") and user.get("role") != "admin":
+                raise HTTPException(status_code=403, detail="You can only view your own attempts")
+            
+            attempt["id"] = str(attempt["_id"])
+            del attempt["_id"]
+            # Map legacy records seamlessly
+            if "total_questions" in attempt:
+                attempt["total"] = attempt.pop("total_questions")
+            if "timestamp" in attempt:
+                attempt["date"] = attempt.pop("timestamp")
+            return attempt
+    except Exception:
+        pass
+        
+    # If not a valid attempt, treat it as user_id for summary list
+    if id != user.get("user_id") and user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="You can only view your own attempts")
 
-    attempts_collection = db["quizzify"]["attempts"]
-    cursor = attempts_collection.find({"user_id": user_id}).sort("timestamp", -1)
+    cursor = attempts_collection.find({"user_id": id}).sort("date", -1)
     attempts = await cursor.to_list(length=100)
+    
+    # Fallback sort on timestamp for legacy records if 'date' sorting fails naturally
+    if not attempts:
+        cursor = attempts_collection.find({"user_id": id}).sort("timestamp", -1)
+        attempts = await cursor.to_list(length=100)
     
     result = []
     for a in attempts:
-        a["id"] = str(a["_id"])
-        del a["_id"]
-        result.append(a)
+        summary = {
+            "id": str(a["_id"]),
+            "quiz_title": a.get("quiz_title", "Unknown"),
+            "score": a.get("score"),
+            "total": a.get("total") or a.get("total_questions"),
+            "percentage": a.get("percentage"),
+            "date": a.get("date") or a.get("timestamp")
+        }
+        result.append(summary)
         
     return result
-
-@router.get("/api/attempt/{attempt_id}")
-async def get_attempt_details(attempt_id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
-    attempts_collection = db["quizzify"]["attempts"]
-    try:
-        obj_id = ObjectId(attempt_id)
-        attempt = await attempts_collection.find_one({"_id": obj_id})
-        if not attempt:
-            raise HTTPException(status_code=404, detail="Attempt not found")
-            
-        if attempt.get("user_id") != user.get("user_id") and user.get("role") != "admin":
-            raise HTTPException(status_code=403, detail="You can only view your own attempts")
-            
-        attempt["id"] = str(attempt["_id"])
-        del attempt["_id"]
-        return attempt
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=400, detail="Invalid attempt ID format")

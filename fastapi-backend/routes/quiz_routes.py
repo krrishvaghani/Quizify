@@ -160,7 +160,6 @@ async def get_quiz(quiz_id: str, db: AsyncIOMotorClient = Depends(get_db_client)
         return {
             "quiz_id": quiz_id,
             "title": quiz.get("title", "Untitled Quiz"),
-            "category_id": quiz.get("category_id", ""),
             "questions": formatted_questions
         }
     except Exception as e:

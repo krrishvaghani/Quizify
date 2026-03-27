@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
 const MyAttempts = () => {
@@ -48,15 +49,21 @@ const MyAttempts = () => {
               <div className={`absolute top-0 left-0 w-full h-2 rounded-t-xl ${attempt.percentage >= 80 ? 'bg-green-500' : attempt.percentage >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
               <h2 className="text-xl font-semibold mb-2 pr-8">{attempt.quiz_title}</h2>
               <div className="flex justify-between items-center mb-4 text-sm text-gray-500">
-                <span>{new Date(attempt.timestamp).toLocaleDateString()}</span>
+                <span>{new Date(attempt.date).toLocaleDateString()}</span>
                 <span className="font-semibold text-gray-700">
-                  {attempt.score} / {attempt.total_questions}
+                  {attempt.score} / {attempt.total}
                 </span>
               </div>
               <div className="mt-auto">
                  <div className="flex justify-between items-center mb-1">
                    <span className="text-sm font-medium text-gray-700">Score</span>
                    <span className="text-sm font-bold text-gray-900">{attempt.percentage}%</span>
+                 </div>
+                 <div className="flex justify-between items-center mb-1 mt-2">
+                   <span className="text-sm font-medium text-gray-700">Status</span>
+                   <span className={`text-sm font-bold ${attempt.percentage >= 80 ? 'text-green-600' : attempt.percentage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                     {attempt.percentage >= 50 ? 'Pass' : 'Fail'}
+                   </span>
                  </div>
                  <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
                    <div 
@@ -65,7 +72,7 @@ const MyAttempts = () => {
                    ></div>
                  </div>
                  <Link 
-                   to={`/user/results/${attempt.id}`}
+                   to={`/result/${attempt.id}`}
                    className="block text-center w-full py-2 bg-gray-50 text-primary-600 font-semibold rounded-lg hover:bg-primary-50 transition-colors border border-gray-100"
                  >
                    View Detailed Result

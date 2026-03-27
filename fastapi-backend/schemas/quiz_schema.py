@@ -15,8 +15,9 @@ class QuestionCreate(BaseModel):
 
 class QuizCreate(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
-    category_id: str = Field(..., min_length=1)
     duration: int = Field(default=5, ge=1, le=180) # Duration in minutes
+    question_timer: bool = Field(default=False)
+    time_per_question: int | None = Field(default=None, ge=5, le=300)
     questions: List[QuestionCreate] = []
         
 class QuestionsBatchCreate(BaseModel):

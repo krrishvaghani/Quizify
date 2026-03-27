@@ -11,7 +11,7 @@ def get_db_client():
 
 @router.get("/dashboard")
 async def get_user_dashboard(db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
-    user_id = user.get("id")
+    user_id = user.get("user_id")
     print(f"--> [BACKEND LOG] User Dashboard API called by user_id: {user_id}")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid user token")
@@ -64,14 +64,20 @@ async def get_user_dashboard(db: AsyncIOMotorClient = Depends(get_db_client), us
     # We will just leave it at 0 if no attempts exist.
             
     # 5. Recent Attempts (Latest 5 for this user)
-    recent_cursor = attempts_col.find({"user_id": user_id}).sort("timestamp", -1).limit(5)
+    recent_pipeline = [
+        {"$match": {"user_id": user_id}},
+        {"$addFields": {"sort_date": {"$ifNull": ["$date", "$timestamp"]}}},
+        {"$sort": {"sort_date": -1}},
+        {"$limit": 5}
+    ]
+    recent_cursor = attempts_col.aggregate(recent_pipeline)
     recent_attempts = []
     async for ra in recent_cursor:
         recent_attempts.append({
             "quiz_title": ra.get("quiz_title", "Unknown Quiz"),
             "score": ra.get("score", 0),
             "percentage": ra.get("percentage", 0),
-            "date": ra.get("timestamp")
+            "date": ra.get("date") or ra.get("timestamp")
         })
         
     # 6. Recommended Quizzes (Latest 3 quizzes added to the platform)

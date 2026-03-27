@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { CheckCircle, XCircle, Trophy, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, Trophy, ArrowLeft, Download } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const Result = () => {
   const { attemptId } = useParams();
@@ -9,6 +11,10 @@ const Result = () => {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState(false);
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userName = user.username || user.name || 'Student';
 
   useEffect(() => {
     fetchAttemptDetails();
@@ -17,7 +23,7 @@ const Result = () => {
   const fetchAttemptDetails = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`http://127.0.0.1:8000/api/attempt/${attemptId}`, {
+      const res = await axios.get(`http://127.0.0.1:8000/api/attempts/${attemptId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setResult(res.data);
@@ -33,19 +39,57 @@ const Result = () => {
   if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
   if (!result) return <div className="p-8 text-center">No result found.</div>;
 
-  const { quiz_title, score, total_questions, percentage, questions } = result;
+  const { quiz_title, score, total, percentage, questions } = result;
   
   // Decide icon based on score
   const isSuccess = percentage >= 50;
 
+  const downloadCertificate = async () => {
+    setDownloading(true);
+    try {
+      const element = document.getElementById('certificate-print');
+      const canvas = await html2canvas(element, { scale: 2 });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF('landscape', 'px', [800, 600]);
+      pdf.addImage(imgData, 'PNG', 0, 0, 800, 600);
+      pdf.save(`${quiz_title.replace(/[^a-zA-Z0-9]/g, '_')}_Certificate.pdf`);
+    } catch (err) {
+      console.error("Failed to generate certificate", err);
+      alert("Failed to generate certificate. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
-    <div className="p-6 max-w-4xl mx-auto w-full animate-fade-in-up pb-24">
-      <button 
-        onClick={() => navigate('/user/my-attempts')} 
-        className="mb-6 flex items-center text-primary-600 hover:text-primary-700 font-medium transition-colors"
-      >
-        <ArrowLeft size={20} className="mr-2" /> Back to Attempts
-      </button>
+    <div className="p-6 max-w-4xl mx-auto w-full animate-fade-in-up pb-24 relative">
+      <div className="flex justify-between items-center mb-6">
+        <button 
+          onClick={() => navigate('/user/my-attempts')} 
+          className="flex items-center text-primary-600 hover:text-primary-700 font-medium transition-colors"
+        >
+          <ArrowLeft size={20} className="mr-2" /> Back to Attempts
+        </button>
+        <div className="flex space-x-3">
+          {isSuccess && (
+            <button 
+              onClick={downloadCertificate} 
+              disabled={downloading}
+              className={`flex items-center px-4 py-2 ${downloading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'} text-white font-medium rounded-xl shadow-sm transition`}
+            >
+              <Download size={18} className="mr-2" />
+              {downloading ? 'Generating...' : 'Certificate'}
+            </button>
+          )}
+          <button 
+            onClick={() => navigate(`/user/play-quiz/${result.quiz_id}`)} 
+            className="px-4 py-2 bg-primary-600 text-white font-medium rounded-xl shadow-sm hover:bg-primary-700 transition"
+          >
+            Retake Quiz
+          </button>
+        </div>
+      </div>
 
       {/* Header Summary Card */}
       <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-100 w-full text-center mb-8 relative overflow-hidden">
@@ -57,13 +101,13 @@ const Result = () => {
         <p className="text-gray-500 mb-8 text-lg font-medium">Quiz: <span className="text-gray-800">{quiz_title}</span></p>
 
         <div className="grid grid-cols-3 gap-6 max-w-2xl mx-auto">
-          <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
-            <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Score</p>
-            <p className="text-4xl font-black text-gray-900">{score}</p>
+          <div className="bg-green-50 p-6 rounded-2xl border border-green-100">
+            <p className="text-sm text-green-700 font-bold uppercase tracking-wider mb-1">Correct Answers</p>
+            <p className="text-4xl font-black text-green-700">{score}</p>
           </div>
-          <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
-            <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Total</p>
-            <p className="text-4xl font-black text-gray-900">{total_questions}</p>
+          <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+            <p className="text-sm text-red-700 font-bold uppercase tracking-wider mb-1">Wrong Answers</p>
+            <p className="text-4xl font-black text-red-700">{total - score}</p>
           </div>
           <div className={`p-6 rounded-2xl border-2 ${percentage >= 80 ? 'bg-green-50 border-green-200' : isSuccess ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'}`}>
             <p className="text-sm font-bold uppercase tracking-wider mb-1 text-gray-600">Percentage</p>
@@ -133,6 +177,48 @@ const Result = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Hidden Certificate */}
+      {isSuccess && (
+        <div style={{ position: 'fixed', top: '-10000px', left: '-10000px' }}>
+          <div 
+            id="certificate-print"
+            style={{
+              width: '800px',
+              height: '600px',
+              padding: '40px',
+              backgroundColor: '#fff',
+              border: '20px solid #10b981',
+              boxSizing: 'border-box',
+              fontFamily: 'sans-serif',
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
+            }}
+          >
+            <div style={{ border: '4px solid #10b981', padding: '40px', height: '100%', boxSizing: 'border-box' }}>
+              <h1 style={{ fontSize: '42px', color: '#111827', margin: '0 0 10px 0' }}>Certificate of Completion</h1>
+              <p style={{ fontSize: '20px', color: '#4b5563', margin: '0 0 30px 0' }}>This acknowledges that</p>
+              <h2 style={{ fontSize: '36px', color: '#10b981', margin: '0 0 30px 0', borderBottom: '2px solid #e5e7eb', display: 'inline-block', paddingBottom: '10px', minWidth: '400px' }}>
+                {userName}
+              </h2>
+              <p style={{ fontSize: '20px', color: '#4b5563', margin: '0 0 20px 0' }}>has successfully completed the quiz</p>
+              <h3 style={{ fontSize: '28px', color: '#111827', margin: '0 0 30px 0' }}>{quiz_title}</h3>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginTop: '30px' }}>
+                <div>
+                  <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0', textTransform: 'uppercase' }}>Score</p>
+                  <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827', margin: 0 }}>{percentage}%</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 5px 0', textTransform: 'uppercase' }}>Date</p>
+                  <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#111827', margin: 0 }}>{new Date().toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

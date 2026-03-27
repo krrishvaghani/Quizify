@@ -57,7 +57,6 @@ const MyQuizzes = () => {
                 <Trash2 size={20} />
               </button>
               <h2 className="text-xl font-semibold mb-2 pr-8">{quiz.title}</h2>
-              <p className="text-gray-500 mb-1">Category: {quiz.category_id || 'General'}</p>
               <p className="text-gray-500 mb-4">Duration: {quiz.duration || 5} mins</p>
             </div>
           ))}

@@ -11,7 +11,7 @@ def get_db_client():
 
 @router.get("/dashboard")
 async def get_admin_dashboard(db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(admin_required)):
-    print(f"--> [BACKEND LOG] Admin Dashboard API called by user_id: {user.get('id')}")
+    print(f"--> [BACKEND LOG] Admin Dashboard API called by user_id: {user.get('user_id')}")
     users_col = db["quizzify"]["users"]
     quizzes_col = db["quizzify"]["quizzes"]
     attempts_col = db["quizzify"]["attempts"]

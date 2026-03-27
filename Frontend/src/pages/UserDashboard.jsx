@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Trophy, Activity, Target, Award, Clock, Star, PlayCircle, ArrowRight } from 'lucide-react';
+import { Trophy, Activity, Target, Award, Clock, Star, PlayCircle, ArrowRight, TrendingUp } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const UserDashboard = () => {
   const [data, setData] = useState(null);
@@ -142,6 +143,52 @@ const UserDashboard = () => {
               <div className="p-8 text-center text-gray-500">
                 You haven't taken any quizzes yet. Check out the recommendations!
               </div>
+            )}
+          </div>
+        </div>
+
+        {/* Performance Trends Chart */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col col-span-1 lg:col-span-2 mt-4">
+          <h2 className="text-lg font-bold text-gray-900 flex items-center mb-6">
+            <TrendingUp size={20} className="mr-2 text-primary-600" />
+            Performance Trends
+          </h2>
+          <div className="h-64 w-full">
+            {data.recent_attempts && data.recent_attempts.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={[...data.recent_attempts].reverse()} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis 
+                    dataKey="quiz_title" 
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    tickFormatter={(val) => val.length > 10 ? val.substring(0, 10) + '...' : val}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis 
+                    domain={[0, 100]} 
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => `${val}%`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                    formatter={(value) => [`${value}%`, 'Score']}
+                    labelStyle={{ color: '#374151', fontWeight: 'bold', marginBottom: '4px' }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="percentage" 
+                    stroke="#4f46e5" 
+                    strokeWidth={3}
+                    dot={{ r: 4, strokeWidth: 2, fill: '#fff' }}
+                    activeDot={{ r: 6, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+               <div className="h-full flex items-center justify-center text-gray-500">Not enough data to graph trends yet.</div>
             )}
           </div>
         </div>

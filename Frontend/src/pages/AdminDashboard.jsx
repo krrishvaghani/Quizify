@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import { Users, FileText, Activity, BarChart2, ArrowRight, Clock, Trophy, Medal, Award } from 'lucide-react';
+import { Users, FileText, Activity, BarChart2, ArrowRight, Clock, Trophy, Medal, Award, TrendingUp } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const AdminDashboard = () => {
   const [data, setData] = useState(null);
@@ -115,19 +116,45 @@ const AdminDashboard = () => {
           </div>
           <div className="flex-grow p-0">
             {data.top_performers && data.top_performers.length > 0 ? (
-              <ul className="divide-y divide-gray-100">
-                {data.top_performers.map((user, idx) => (
-                  <li key={idx} className="p-5 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                    <div className="flex items-center">
-                      {getRankIcon(idx)}
-                      <span className="font-semibold text-gray-900 ml-1">{user.username}</span>
-                    </div>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-100 text-primary-800">
-                      {user.score} pts
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <div className="flex flex-col h-full">
+                <div className="h-64 w-full p-4 border-b border-gray-100 mb-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data.top_performers} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                      <XAxis 
+                        dataKey="username" 
+                        tick={{ fontSize: 12, fill: '#6b7280' }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(val) => val.length > 8 ? val.substring(0, 8) + '...' : val}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: 12, fill: '#6b7280' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                        cursor={{ fill: '#f3f4f6' }}
+                      />
+                      <Bar dataKey="score" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <ul className="divide-y divide-gray-100 overflow-y-auto max-h-64">
+                  {data.top_performers.map((user, idx) => (
+                    <li key={idx} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center">
+                        {getRankIcon(idx)}
+                        <span className="font-semibold text-gray-900 ml-1">{user.username}</span>
+                      </div>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary-100 text-primary-800">
+                        {user.score} pts
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ) : (
               <div className="p-8 text-center text-sm text-gray-500">No attempts yet.</div>
             )}

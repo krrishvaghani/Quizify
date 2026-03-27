@@ -5,6 +5,9 @@ import { Trophy, Medal, Award } from 'lucide-react';
 const AdminLeaderboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUserId = currentUser.user_id || currentUser.id;
 
   useEffect(() => {
     fetchLeaderboard();
@@ -36,9 +39,9 @@ const AdminLeaderboard = () => {
 
   const getRankIcon = (index) => {
     switch(index) {
-      case 0: return <Trophy size={24} className="text-yellow-500 mr-3" />;
-      case 1: return <Medal size={22} className="text-gray-400 mr-3" />;
-      case 2: return <Award size={22} className="text-amber-600 mr-3" />;
+      case 0: return <span className="text-3xl mr-3">🥇</span>;
+      case 1: return <span className="text-3xl mr-3">🥈</span>;
+      case 2: return <span className="text-3xl mr-3">🥉</span>;
       default: return <span className="w-8 mr-3 font-medium text-gray-400">#{index + 1}</span>;
     }
   };
@@ -77,8 +80,10 @@ const AdminLeaderboard = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {leaderboard.map((user, index) => (
-                <tr key={user.user_id} className={`transition-colors hover:bg-gray-50 border-b ${getRankStyle(index)}`}>
+              {leaderboard.map((user, index) => {
+                const isCurrentUser = String(user.user_id) === String(currentUserId);
+                return (
+                <tr key={user.user_id} className={`transition-colors border-b ${isCurrentUser ? 'bg-primary-50 hover:bg-primary-100 border-primary-200 shadow-inner' : 'hover:bg-gray-50 ' + getRankStyle(index)}`}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       {getRankIcon(index)}
@@ -86,6 +91,7 @@ const AdminLeaderboard = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="font-semibold">{user.username}</span>
+                    {isCurrentUser && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-primary-600 text-white">You</span>}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <span className="px-3 py-1 inline-flex text-md leading-5 font-bold rounded-full bg-primary-100 text-primary-800">
@@ -96,7 +102,8 @@ const AdminLeaderboard = () => {
                     {user.attempts}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

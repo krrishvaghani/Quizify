@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from motor.motor_asyncio import AsyncIOMotorClient
 from config.db import get_database
-from utils.auth import admin_required
+from utils.auth import admin_required, get_current_user
 from bson import ObjectId
 
 router = APIRouter(prefix="/api/leaderboard", tags=["Leaderboard"])
@@ -10,7 +10,7 @@ def get_db_client():
     return get_database()
 
 @router.get("/")
-async def get_leaderboard(db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(admin_required)):
+async def get_leaderboard(db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
     attempts_collection = db["quizzify"]["attempts"]
     users_collection = db["quizzify"]["users"]
     
@@ -35,8 +35,8 @@ async def get_leaderboard(db: AsyncIOMotorClient = Depends(get_db_client), user:
     leaderboard_data = await cursor.to_list(length=10)
     
     result = []
-    for item in leaderboard_data:
-        user_id_str = item["_id"]
+    for idx, item in enumerate(leaderboard_data):
+        user_id_str = str(item["_id"])
         
         # Try to resolve user's name
         try:
@@ -47,6 +47,7 @@ async def get_leaderboard(db: AsyncIOMotorClient = Depends(get_db_client), user:
             username = "Unknown User"
             
         result.append({
+            "rank": idx + 1,
             "user_id": user_id_str,
             "username": username,
             "total_score": item["total_score"],

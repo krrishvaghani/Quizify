@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, PlusSquare, List, Grid, LogOut, Trophy } from 'lucide-react';
+import { Home, PlusSquare, List, LogOut, Trophy, BarChart3, Users, ClipboardList, LibraryBig, Bot, FileUp, Settings } from 'lucide-react';
 
 const AdminSidebar = () => {
   const location = useLocation();
@@ -7,6 +7,13 @@ const AdminSidebar = () => {
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin', icon: <Home size={20} /> },
+    { name: 'Quiz Analytics', path: '/admin/analytics', icon: <BarChart3 size={20} /> },
+    { name: 'Users', path: '/admin/users', icon: <Users size={20} /> },
+    { name: 'Assignment Management', path: '/admin/assignment-management', icon: <ClipboardList size={20} /> },
+    { name: 'Question Bank', path: '/admin/question-bank', icon: <LibraryBig size={20} /> },
+    { name: 'AI Control', path: '/admin/ai-control', icon: <Bot size={20} /> },
+    { name: 'Import Quiz', path: '/admin/import-quiz', icon: <FileUp size={20} /> },
+    { name: 'Settings', path: '/admin/settings', icon: <Settings size={20} /> },
     { name: 'Create Quiz', path: '/admin/create-quiz', icon: <PlusSquare size={20} /> },
     { name: 'My Quizzes', path: '/admin/my-quizzes', icon: <List size={20} /> },
     { name: 'Top Performers', path: '/admin/leaderboard', icon: <Trophy size={20} /> },

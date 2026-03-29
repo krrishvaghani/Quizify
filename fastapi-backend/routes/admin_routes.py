@@ -18,20 +18,38 @@ async def create_quiz(quiz: QuizCreate, db: AsyncIOMotorClient = Depends(get_db_
     
     quiz_dict = quiz.model_dump(exclude={"questions"})
     quiz_dict["created_by"] = user_id
+    quiz_dict["question_ids"] = []
+
+    selected_question_ids = sorted(set(quiz.question_ids or []))
+    if selected_question_ids:
+        valid_ids = [ObjectId(qid) for qid in selected_question_ids if ObjectId.is_valid(qid)]
+        valid_questions_count = await questions_collection.count_documents({"_id": {"$in": valid_ids}})
+        if valid_questions_count != len(selected_question_ids):
+            raise HTTPException(status_code=400, detail="One or more selected question IDs are invalid")
     
     result = await quizzes_collection.insert_one(quiz_dict)
     
     if result.inserted_id:
         quiz_id = str(result.inserted_id)
+        combined_question_ids = list(selected_question_ids)
         
         if quiz.questions:
             questions_data = []
             for q in quiz.questions:
                 q_dict = q.model_dump()
+                q_dict["question"] = q_dict.pop("text")
+                q_dict["category"] = "General"
+                q_dict["difficulty"] = "medium"
                 q_dict["quiz_id"] = quiz_id
                 questions_data.append(q_dict)
             if questions_data:
-                await questions_collection.insert_many(questions_data)
+                insert_result = await questions_collection.insert_many(questions_data)
+                combined_question_ids.extend([str(qid) for qid in insert_result.inserted_ids])
+
+        await quizzes_collection.update_one(
+            {"_id": result.inserted_id},
+            {"$set": {"question_ids": sorted(set(combined_question_ids))}},
+        )
                 
         return {"message": "Quiz created successfully", "quiz_id": quiz_id}
     

@@ -18,6 +18,7 @@ async def get_user_dashboard(db: AsyncIOMotorClient = Depends(get_db_client), us
         
     attempts_col = db["quizzify"]["attempts"]
     quizzes_col = db["quizzify"]["quizzes"]
+    groups_col = db["quizzify"]["groups"]
     
     # 1. Total Attempts
     total_attempts = await attempts_col.count_documents({"user_id": user_id})
@@ -80,14 +81,25 @@ async def get_user_dashboard(db: AsyncIOMotorClient = Depends(get_db_client), us
             "date": ra.get("date") or ra.get("timestamp")
         })
         
-    # 6. Recommended Quizzes (Latest 3 quizzes added to the platform)
-    quizzes_cursor = quizzes_col.find({}).sort("_id", -1).limit(3)
+    # 6. Recommended Quizzes (Latest 3 assigned quizzes)
+    group_cursor = groups_col.find({"users": user_id}, {"_id": 1})
+    group_docs = await group_cursor.to_list(length=500)
+    user_group_ids = [str(g["_id"]) for g in group_docs]
+
+    quizzes_cursor = quizzes_col.find(
+        {
+            "$or": [
+                {"assigned_users": user_id},
+                {"assigned_groups": {"$in": user_group_ids}},
+            ]
+        }
+    ).sort("_id", -1).limit(3)
     recommended_quizzes = []
     async for q in quizzes_cursor:
         recommended_quizzes.append({
             "quiz_id": str(q["_id"]),
             "title": q.get("title", "Untitled Quiz"),
-            "duration": q.get("time_limit", 10)
+            "duration": q.get("duration", 5)
         })
 
     return {

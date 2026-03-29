@@ -6,11 +6,17 @@ const QuizList = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   useEffect(() => {
     const headers = { Authorization: 'Bearer ' + token };
 
-    fetch('http://localhost:8000/api/quizzes/user', { headers }).then(r => r.json())
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+
+    fetch(`http://localhost:8000/api/user/assigned-quizzes/${user.id}`, { headers }).then(r => r.json())
       .then((quizData) => {
         setQuizzes(quizData);
         setLoading(false);

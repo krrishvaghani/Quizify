@@ -11,10 +11,27 @@ router = APIRouter(tags=["User Quizzes and Attempts"])
 def get_db_client():
     return get_database()
 
+
+async def _get_user_group_ids(db: AsyncIOMotorClient, user_id: str) -> list[str]:
+    groups_collection = db["quizzify"]["groups"]
+    cursor = groups_collection.find({"users": user_id}, {"_id": 1})
+    groups = await cursor.to_list(length=500)
+    return [str(group["_id"]) for group in groups]
+
 @router.get("/api/quizzes/user")
 async def get_user_quizzes(db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
+    user_id = user.get("user_id")
     quizzes_collection = db["quizzify"]["quizzes"]
-    cursor = quizzes_collection.find({})
+
+    user_group_ids = await _get_user_group_ids(db, user_id)
+    query = {
+        "$or": [
+            {"assigned_users": user_id},
+            {"assigned_groups": {"$in": user_group_ids}},
+        ]
+    }
+
+    cursor = quizzes_collection.find(query)
     quizzes = await cursor.to_list(length=100)
     
     result = []
@@ -24,26 +41,78 @@ async def get_user_quizzes(db: AsyncIOMotorClient = Depends(get_db_client), user
         result.append(q)
     return result
 
+
+@router.get("/api/user/assigned-quizzes/{user_id}")
+async def get_assigned_quizzes(
+    user_id: str,
+    db: AsyncIOMotorClient = Depends(get_db_client),
+    user: dict = Depends(get_current_user),
+):
+    if user_id != user.get("user_id") and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="You can only view your own assigned quizzes")
+
+    quizzes_collection = db["quizzify"]["quizzes"]
+    user_group_ids = await _get_user_group_ids(db, user_id)
+
+    query = {
+        "$or": [
+            {"assigned_users": user_id},
+            {"assigned_groups": {"$in": user_group_ids}},
+        ]
+    }
+
+    cursor = quizzes_collection.find(query).sort("_id", -1)
+    quizzes = await cursor.to_list(length=300)
+
+    result = []
+    for q in quizzes:
+        result.append(
+            {
+                "quiz_id": str(q["_id"]),
+                "title": q.get("title", "Untitled Quiz"),
+                "duration": q.get("duration", 5),
+                "question_timer": q.get("question_timer", False),
+                "time_per_question": q.get("time_per_question"),
+            }
+        )
+
+    return result
+
 @router.get("/api/quizzes/user/{quiz_id}")
 async def play_quiz(quiz_id: str, db: AsyncIOMotorClient = Depends(get_db_client), user: dict = Depends(get_current_user)):
     quizzes_collection = db["quizzify"]["quizzes"]
     questions_collection = db["quizzify"]["questions"]
+    user_id = user.get("user_id")
+    role = user.get("role")
     
     try:
         quiz_obj_id = ObjectId(quiz_id)
         quiz = await quizzes_collection.find_one({"_id": quiz_obj_id})
         if not quiz:
             raise HTTPException(status_code=404, detail="Quiz not found")
+
+        if role != "admin":
+            user_group_ids = await _get_user_group_ids(db, user_id)
+            assigned_users = quiz.get("assigned_users", [])
+            assigned_groups = quiz.get("assigned_groups", [])
+            if user_id not in assigned_users and not set(user_group_ids).intersection(set(assigned_groups)):
+                raise HTTPException(status_code=403, detail="This quiz is not assigned to you")
             
-        cursor = questions_collection.find({"quiz_id": quiz_id})
-        questions = await cursor.to_list(length=100)
+        question_ids = quiz.get("question_ids", [])
+        if question_ids:
+            q_object_ids = [ObjectId(qid) for qid in question_ids if ObjectId.is_valid(qid)]
+            cursor = questions_collection.find({"_id": {"$in": q_object_ids}})
+            questions = await cursor.to_list(length=200)
+        else:
+            cursor = questions_collection.find({"quiz_id": quiz_id})
+            questions = await cursor.to_list(length=100)
         
         # Remove correct_answer so user can't cheat
         formatted_questions = []
         for q in questions:
             formatted_questions.append({
                 "question_id": str(q["_id"]),
-                "question": q["text"],
+                "question": q.get("question") or q.get("text", ""),
                 "options": q["options"]
             })
             
@@ -75,8 +144,21 @@ async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Dep
     except Exception:
         quiz_title = "Unknown Quiz"
     
-    cursor = questions_collection.find({"quiz_id": submission.quiz_id})
-    questions = await cursor.to_list(length=100)
+    quiz_doc = None
+    try:
+        quiz_obj_id = ObjectId(submission.quiz_id)
+        quiz_doc = await quizzes_collection.find_one({"_id": quiz_obj_id})
+    except Exception:
+        quiz_doc = None
+
+    question_ids = quiz_doc.get("question_ids", []) if quiz_doc else []
+    if question_ids:
+        q_object_ids = [ObjectId(qid) for qid in question_ids if ObjectId.is_valid(qid)]
+        cursor = questions_collection.find({"_id": {"$in": q_object_ids}})
+        questions = await cursor.to_list(length=200)
+    else:
+        cursor = questions_collection.find({"quiz_id": submission.quiz_id})
+        questions = await cursor.to_list(length=100)
     
     if not questions:
         raise HTTPException(status_code=404, detail="No questions found for this quiz")
@@ -95,7 +177,7 @@ async def submit_attempt(submission: AttemptSubmit, db: AsyncIOMotorClient = Dep
         is_val = (user_opt == correct_opt)
         
         detailed_questions.append({
-            "question": q["text"],
+            "question": q.get("question") or q.get("text", ""),
             "options": q["options"],
             "correct_answer": correct_opt,
             "user_answer": user_opt,

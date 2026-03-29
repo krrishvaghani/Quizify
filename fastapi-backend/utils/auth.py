@@ -5,17 +5,20 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 import os
 from dotenv import load_dotenv
+from bson import ObjectId
+from config.db import get_database
 
 load_dotenv()
 
 JWT_SECRET = os.getenv("JWT_SECRET", "1234567890qwertyuiopasdfghjklzxcvbnm")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 
-def sign_jwt(user_id: str, role: str) -> str:
+def sign_jwt(user_id: str, role: str, expires_in_minutes: int = 60) -> str:
+    safe_minutes = max(1, int(expires_in_minutes))
     payload = {
         "user_id": user_id,
         "role": role,
-        "expires": time.time() + 3600 # 1 hour
+        "expires": time.time() + (safe_minutes * 60)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -41,6 +44,30 @@ class JWTAuth(HTTPBearer):
         payload = decode_jwt(credentials.credentials)
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+        db = get_database()
+        if not db:
+            raise HTTPException(status_code=503, detail="Database unavailable")
+
+        user_id = payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+
+        try:
+            user_obj_id = ObjectId(user_id)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+
+        user_doc = await db["quizzify"]["users"].find_one({"_id": user_obj_id})
+        if not user_doc:
+            raise HTTPException(status_code=401, detail="User no longer exists")
+
+        if user_doc.get("is_deleted", False):
+            raise HTTPException(status_code=403, detail="Your account has been deleted. Contact an administrator.")
+
+        if user_doc.get("is_blocked", False):
+            raise HTTPException(status_code=403, detail="Your account is blocked. Contact an administrator.")
+
         return payload
 
 def get_current_user(payload: dict = Depends(JWTAuth())) -> dict:

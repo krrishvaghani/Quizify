@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Trash2, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import QuestionForm from '../components/QuestionForm';
@@ -9,6 +9,9 @@ const CreateQuiz = () => {
   const [questionTimer, setQuestionTimer] = useState(false);
   const [timePerQuestion, setTimePerQuestion] = useState(15);
   const [questions, setQuestions] = useState([]);
+  const [questionBank, setQuestionBank] = useState([]);
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState([]);
+  const [loadingBank, setLoadingBank] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // AI Modal States
@@ -18,6 +21,44 @@ const CreateQuiz = () => {
   const [aiFile, setAiFile] = useState(null);
   const [aiCount, setAiCount] = useState(5);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    fetchQuestionBank();
+
+    const imported = sessionStorage.getItem('importedQuizQuestions');
+    if (imported) {
+      try {
+        const parsed = JSON.parse(imported);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setQuestions((prev) => [...prev, ...parsed]);
+        }
+      } catch (err) {
+        console.error('Failed to parse imported quiz questions', err);
+      }
+      sessionStorage.removeItem('importedQuizQuestions');
+    }
+  }, []);
+
+  const fetchQuestionBank = async () => {
+    try {
+      setLoadingBank(true);
+      const res = await axios.get('http://127.0.0.1:8000/api/admin/questions', {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      setQuestionBank(res.data || []);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load question bank: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoadingBank(false);
+    }
+  };
+
+  const toggleQuestionSelection = (questionId) => {
+    setSelectedQuestionIds((prev) =>
+      prev.includes(questionId) ? prev.filter((id) => id !== questionId) : [...prev, questionId]
+    );
+  };
 
   const handleAddQuestion = (question) => {
     setQuestions([...questions, question]);
@@ -78,8 +119,8 @@ const CreateQuiz = () => {
       alert('Please fill in quiz title');
       return;
     }
-    if (questions.length === 0) {
-      alert('Please add at least one question');
+    if (questions.length === 0 && selectedQuestionIds.length === 0) {
+      alert('Please add at least one custom question or select one from question bank');
       return;
     }
     
@@ -107,6 +148,7 @@ const CreateQuiz = () => {
         duration: computedDuration,
         question_timer: questionTimer,
         time_per_question: questionTimer ? parseInt(timePerQuestion) : null,
+        question_ids: selectedQuestionIds,
         questions
       };
 
@@ -124,6 +166,7 @@ const CreateQuiz = () => {
       setQuestionTimer(false);
       setTimePerQuestion(15);
       setQuestions([]);
+      setSelectedQuestionIds([]);
 
     } catch (error) {
       console.error(error);
@@ -217,6 +260,37 @@ const CreateQuiz = () => {
         </div>
       </div>
 
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 mb-8 transition-all">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Question Bank</h2>
+          <span className="text-sm text-gray-500">Selected: {selectedQuestionIds.length}</span>
+        </div>
+        {loadingBank ? (
+          <p className="text-sm text-gray-500">Loading question bank...</p>
+        ) : questionBank.length === 0 ? (
+          <p className="text-sm text-gray-500">No question bank entries yet. Add from Question Bank page.</p>
+        ) : (
+          <div className="max-h-72 overflow-y-auto border border-gray-200 rounded-xl p-3 space-y-3">
+            {questionBank.map((q) => (
+              <label key={q.question_id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={selectedQuestionIds.includes(q.question_id)}
+                  onChange={() => toggleQuestionSelection(q.question_id)}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{q.question}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {q.category || 'General'} | {q.difficulty || 'medium'}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
       <QuestionForm onAddQuestion={handleAddQuestion} />
 
       {questions.length > 0 && (
@@ -256,7 +330,7 @@ const CreateQuiz = () => {
       <div className="flex justify-end pt-4 pb-12">
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting || questions.length === 0}
+          disabled={isSubmitting || (questions.length === 0 && selectedQuestionIds.length === 0)}
           className="px-8 py-3.5 bg-primary-600 text-white font-bold text-lg rounded-xl shadow-md hover:bg-primary-700 hover:shadow-lg transition-all focus:ring-4 focus:ring-primary-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Saving Quiz...' : 'Save Complete Quiz'}

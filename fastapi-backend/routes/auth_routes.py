@@ -47,6 +47,18 @@ async def login(user: UserLogin, db: AsyncIOMotorClient = Depends(get_db_client)
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
+
+    if db_user.get("is_deleted", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been deleted. Contact an administrator."
+        )
+
+    if db_user.get("is_blocked", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is blocked. Contact an administrator."
+        )
     
     # Verify password
     is_valid_password = UserModel.verify_password(user.password, db_user["hashed_password"])
@@ -58,7 +70,9 @@ async def login(user: UserLogin, db: AsyncIOMotorClient = Depends(get_db_client)
         
     user_id_str = str(db_user["_id"])
     role = db_user.get("role", "user")
-    access_token = sign_jwt(user_id_str, role)
+    settings_doc = await db["quizzify"]["admin_settings"].find_one({"_id": "default"})
+    token_expiry_minutes = int(settings_doc.get("token_expiry_minutes", 60)) if settings_doc else 60
+    access_token = sign_jwt(user_id_str, role, expires_in_minutes=token_expiry_minutes)
     
     return {
         "message": "Login successful",

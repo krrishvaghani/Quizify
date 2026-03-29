@@ -4,22 +4,88 @@ import { Trophy, Medal, Award } from 'lucide-react';
 
 const AdminLeaderboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
+  const [mode, setMode] = useState('global');
+  const [quizzes, setQuizzes] = useState([]);
+  const [selectedQuizId, setSelectedQuizId] = useState('');
+  const [quizTitle, setQuizTitle] = useState('');
   const [loading, setLoading] = useState(true);
   
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const currentUserId = currentUser.user_id || currentUser.id;
 
   useEffect(() => {
-    fetchLeaderboard();
+    fetchQuizzes();
+    fetchLeaderboard('global', '');
   }, []);
 
-  const fetchLeaderboard = async () => {
+  const exportLeaderboard = () => {
+    if (!leaderboard.length) {
+      window.alert('No leaderboard data to export.');
+      return;
+    }
+
+    const headers = ['rank', 'username', 'total_score', mode === 'quiz' ? 'best_percentage' : 'average_percentage', 'attempts'];
+    const rows = leaderboard.map((item) => [
+      item.rank,
+      item.username || 'Unknown User',
+      item.total_score ?? 0,
+      mode === 'quiz' ? item.best_percentage ?? 0 : item.average_percentage ?? 0,
+      item.attempts ?? 0,
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = mode === 'quiz' ? 'quiz_leaderboard_export.csv' : 'global_leaderboard_export.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const fetchQuizzes = async () => {
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://127.0.0.1:8000/api/leaderboard', {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const isAdmin = user.role === 'admin';
+      const url = isAdmin
+        ? 'http://127.0.0.1:8000/api/quizzes/admin'
+        : `http://127.0.0.1:8000/api/user/assigned-quizzes/${user.id}`;
+      const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setLeaderboard(res.data);
+      const data = res.data || [];
+      setQuizzes(data);
+      if (data.length > 0) {
+        setSelectedQuizId(data[0].quiz_id);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchLeaderboard = async (nextMode = mode, nextQuizId = selectedQuizId) => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      if (nextMode === 'quiz' && nextQuizId) {
+        const res = await axios.get(`http://127.0.0.1:8000/api/leaderboard/quiz/${nextQuizId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setLeaderboard(res.data?.rankings || []);
+        setQuizTitle(res.data?.quiz_title || 'Selected Quiz');
+      } else {
+        const res = await axios.get('http://127.0.0.1:8000/api/leaderboard/global', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setLeaderboard(res.data || []);
+        setQuizTitle('');
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to load leaderboard data');
@@ -53,9 +119,70 @@ const AdminLeaderboard = () => {
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight flex items-center">
           <Trophy className="mr-3 text-primary-600" size={32} />
-          Top Performers
+          Leaderboard
         </h1>
-        <p className="text-gray-500 mt-2">Ranking of all users based on their total cumulative scores.</p>
+        <p className="text-gray-500 mt-2">
+          {mode === 'global'
+            ? 'Global ranking based on cumulative score and average performance.'
+            : `Quiz-wise ranking sorted by score percentage${quizTitle ? ` for ${quizTitle}` : ''}.`}
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="inline-flex rounded-lg border border-gray-200 p-1 bg-gray-50">
+            <button
+              onClick={() => {
+                setMode('global');
+                fetchLeaderboard('global', selectedQuizId);
+              }}
+              className={`px-4 py-2 text-sm font-semibold rounded-md transition ${mode === 'global' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              Global
+            </button>
+            <button
+              onClick={() => {
+                setMode('quiz');
+                if (selectedQuizId) {
+                  fetchLeaderboard('quiz', selectedQuizId);
+                } else {
+                  setLeaderboard([]);
+                }
+              }}
+              className={`px-4 py-2 text-sm font-semibold rounded-md transition ${mode === 'quiz' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            >
+              Quiz-wise
+            </button>
+          </div>
+          <button
+            onClick={exportLeaderboard}
+            className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold transition-colors"
+          >
+            Export Leaderboard
+          </button>
+        </div>
+
+        {mode === 'quiz' && (
+          <select
+            value={selectedQuizId}
+            onChange={(e) => {
+              const qid = e.target.value;
+              setSelectedQuizId(qid);
+              if (qid) {
+                fetchLeaderboard('quiz', qid);
+              }
+            }}
+            className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+          >
+            {quizzes.length === 0 ? (
+              <option value="">No quizzes available</option>
+            ) : (
+              quizzes.map((q) => (
+                <option key={q.quiz_id} value={q.quiz_id}>{q.title}</option>
+              ))
+            )}
+          </select>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -73,6 +200,9 @@ const AdminLeaderboard = () => {
                 </th>
                 <th scope="col" className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">
                   Total Score
+                </th>
+                <th scope="col" className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Avg %
                 </th>
                 <th scope="col" className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">
                   Attempts
@@ -97,6 +227,9 @@ const AdminLeaderboard = () => {
                     <span className="px-3 py-1 inline-flex text-md leading-5 font-bold rounded-full bg-primary-100 text-primary-800">
                       {user.total_score}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-semibold text-gray-700">
+                    {mode === 'quiz' ? user.best_percentage : user.average_percentage}%
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-gray-500 font-medium">
                     {user.attempts}

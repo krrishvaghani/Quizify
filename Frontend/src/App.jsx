@@ -13,6 +13,13 @@ import Result from './pages/Result';
 import MyQuizzes from './pages/MyQuizzes';
 import AdminLeaderboard from './pages/AdminLeaderboard';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminAnalytics from './pages/AdminAnalytics';
+import AdminUsers from './pages/AdminUsers';
+import AssignQuiz from './pages/AssignQuiz';
+import QuestionBank from './pages/QuestionBank';
+import AIControlPanel from './pages/AIControlPanel';
+import ImportQuiz from './pages/ImportQuiz';
+import AdminSettings from './pages/AdminSettings';
 import UserDashboard from './pages/UserDashboard';
 import MyAttempts from './pages/MyAttempts';
 import axios from 'axios';
@@ -26,6 +33,18 @@ axios.interceptors.response.use(
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+
+    if (error.response && error.response.status === 403) {
+      const detail = error.response?.data?.detail || '';
+      const normalized = String(detail).toLowerCase();
+      if (normalized.includes('blocked') || normalized.includes('deleted')) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.alert(detail || 'Your account access has been restricted by an administrator.');
+        window.location.href = '/login';
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -46,6 +65,13 @@ function App() {
             <Route path="create-quiz" element={<CreateQuiz />} />
             <Route path="my-quizzes" element={<MyQuizzes />} />
             <Route path="leaderboard" element={<AdminLeaderboard />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="assignment-management" element={<AssignQuiz />} />
+            <Route path="question-bank" element={<QuestionBank />} />
+            <Route path="ai-control" element={<AIControlPanel />} />
+            <Route path="import-quiz" element={<ImportQuiz />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
         </Route>
 

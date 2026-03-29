@@ -17,5 +17,7 @@ class UserModel:
             "name": name,
             "email": email,
             "hashed_password": UserModel.get_password_hash(password),
-            "role": role
+            "role": role,
+            "is_blocked": False,
+            "is_deleted": False,
         }
